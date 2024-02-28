@@ -6,9 +6,14 @@ html lang="en"
         title Document
     body 
 
-    
-    nav
-        a href="/" Start
-        a href="/register" Register 
-        a href="/showlogin" Login
-    ==yield
+-   if !logged_in?
+        nav
+            a href="/" Start
+            a href="/register" Register 
+            a href="/showlogin" Login
+-   else 
+        nav
+            a href="/" Start
+            a href="/bookies" My page 
+            a href="/logout" Logout
+==yield
