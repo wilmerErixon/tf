@@ -44,9 +44,16 @@ post('/login') do
   pwdigest = result["pwdigest"]
   id = result["id"]
 
+
+
   if BCrypt::Password.new(pwdigest) == password
     session[:id] = id
     session[:username] = username
+    if username == "ADMIN"
+      session[:authorization] = "admin"
+    else 
+      session[:authorization] = "user"
+    end
     p session[:id]
     redirect('/bookies')
   else
@@ -59,14 +66,13 @@ get('/logout') do
   redirect('/')
 end
 
-get('/bookies')  do
-  id = session[:id].to_i
-  db = SQLite3::Database.new('db/bookies.db')
+get('/bookies') do
+  p session[:authorization]
+  db = SQLite3::Database.new("db/bookies.db")
   db.results_as_hash = true
-  result = db.execute("SELECT * FROM users WHERE id = ?",id)
-  p "Alla bookies från result #{result}"
-  slim(:"bookies/index",locals:{bookies:result})
-end 
+  @result = db.execute("SELECT * FROM book")
+  slim(:"bookies/index")
+end
 
 post('/users/new') do
   username = params[:username]
@@ -82,3 +88,16 @@ post('/users/new') do
     "Lösenorden matchade inte"
   end
 end
+
+get('/bookies/new') do
+  slim(:"bookies/new")
+end
+
+post('/bookies/new') do
+  name = params[:name]
+  author_id = params[:author_id].to_i
+  p "Vi fick in data #{name} och #{author_id}"
+  db = SQLite3::Database.new("db/bookies.db")
+  db.execute("INSERT INTO albums (name, author_id) VALUES (?,?)", title, author_id)
+  redirect('/bookies')
+end 
