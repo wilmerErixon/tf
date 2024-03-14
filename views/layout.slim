@@ -5,17 +5,15 @@ html lang="en"
         meta name="viewport" content="width=device-width, initial-scale=1.0"/
         title Document
     body 
-        h1 = session[:authorization] 
-
         -   if !logged_in?
                 nav
-                    - if session[:authorization] == "admin"
-                        a href="/newbook" Add book
                     a href="/" Start
                     a href="/register" Register 
                     a href="/showlogin" Login
         -   else 
                 nav
+                    - if session[:authorization] == "admin"
+                        a href="/bookies/new" Add book
                     a href="/" Start
                     a href="/bookies" My page 
                     a href="/logout" Logout

@@ -1,4 +1,9 @@
 form action="/bookies/new" method="post"
-    input type="text" name="name" placeholder="Titel på Book"
-    input type="text" name="author_id" placeholder="id för författare"
+    input type="text" name="title" placeholder="Titel på Book"
+    input type="text" name="author" placeholder="Författare"
+    input type="text" name="pages" placeholder="mängden sidor"
+    select name="genre"
+        option value="#{nil}" selected="selected"
+        - @genres.each do |genre|
+            option value="#{genre["genre_name"]}" #{genre["genre_name"]}
     input type="submit" value="Lägg till Bok"

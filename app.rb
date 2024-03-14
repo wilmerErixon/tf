@@ -55,6 +55,7 @@ post('/login') do
       session[:authorization] = "user"
     end
     p session[:id]
+    p session[:authorization]
     redirect('/bookies')
   else
     redirect('/wrongpassword')
@@ -90,14 +91,34 @@ post('/users/new') do
 end
 
 get('/bookies/new') do
+  db = SQLite3::Database.new("db/bookies.db")
+  db.results_as_hash = true
+  @genres = db.execute("SELECT * FROM genre")
+  p @genres
   slim(:"bookies/new")
 end
 
 post('/bookies/new') do
-  name = params[:name]
-  author_id = params[:author_id].to_i
-  p "Vi fick in data #{name} och #{author_id}"
+  title = params[:title]
+  author = params[:author]
   db = SQLite3::Database.new("db/bookies.db")
-  db.execute("INSERT INTO albums (name, author_id) VALUES (?,?)", title, author_id)
+  db.results_as_hash = true
+  p db.execute("SELECT id FROM author WHERE author_name = ?", author)
+  if db.execute("SELECT id FROM author WHERE author_name = ?", author) == []
+    db.execute("INSERT INTO author (author_name) VALUES (?)", (author))
+  end
+  pages = params[:pages]
+  author_id = db.execute("SELECT id FROM author WHERE author_name = ?", author).first["id"]
+  db.execute("INSERT INTO book (title, author_id, pages) VALUES (?,?,?)", title, author_id, pages)
   redirect('/bookies')
+end 
+
+get('/books/:id') do
+  id = params[:id].to_i
+  db = SQLite3::Database.new("db/bookies.db")
+  db.results_as_hash = true
+  result = db.execute("SELECT * FROM book WHERE id = ?",id).first
+  result2 = db.execute("SELECT author_name FROM author WHERE id IN (SELECT author_id FROM book WHERE id = ?)", id).first
+  p "Resultatet är: #{result2}" 
+  slim(:"bookies/books",locals:{result:result,result2:result2})
 end 

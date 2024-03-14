@@ -4,9 +4,10 @@ h2 See all your saved books here #{session[:username]}
 ol
     - @result.each do |book|
         li 
-            a href="books/#{book['id']}" #{book["name"]}
+            a href="books/#{book['id']}" #{book["title"]}
             a href="books/#{book['id']}/edit" Uppdatera
             form method="POST" action="books/#{book['id']}/delete"
                 input type="submit" value="Delete"
+            
         
 
