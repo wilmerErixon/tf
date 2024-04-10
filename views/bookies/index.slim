@@ -5,9 +5,13 @@ ol
     - @result.each do |book|
         li 
             a href="books/#{book['id']}" #{book["title"]}
-            a href="books/#{book['id']}/edit" Uppdatera
-            form method="POST" action="books/#{book['id']}/delete"
-                input type="submit" value="Delete"
+            form method="POST" action="books/#{book['id']}/add" 
+                input type="submit" value="Add to my books"
+            - if session[:authorization] == "admin"    
+                form method="POST" action="books/#{book['id']}/update"
+                    input type="submit" value="Update"
+                form method="POST" action="books/#{book['id']}/delete"
+                    input type="submit" value="Delete"
             
         
 

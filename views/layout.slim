@@ -15,6 +15,7 @@ html lang="en"
                     - if session[:authorization] == "admin"
                         a href="/bookies/new" Add book
                     a href="/" Start
-                    a href="/bookies" My page 
+                    a href="/bookies" All books 
+                    a href="/myBooks" My books 
                     a href="/logout" Logout
         ==yield

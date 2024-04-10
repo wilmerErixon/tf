@@ -1,0 +1,9 @@
+h2 My Books!
+h3 See all your saved books here #{session[:username]}
+
+ul
+    -@title_ids.each do |id|
+        -title = @db.execute("SELECT title FROM book WHERE id = ?", id["title_id"]).first["title"]
+        
+        a href="books/#{id['title_id']}"
+            li #{title}
