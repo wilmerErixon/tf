@@ -62,6 +62,10 @@ get('/emptyError') do
   slim(:"emptyError")
 end
 
+get('/noMatch') do
+  slim(:"noMatch")
+end
+
 post('/login') do
   username = params[:username]
   password = params[:password]
@@ -96,7 +100,6 @@ get('/logout') do
 end
 
 get('/bookies') do
-  
   db = SQLite3::Database.new("db/bookies.db")
   db.results_as_hash = true
   @result = db.execute("SELECT * FROM book")
@@ -127,13 +130,13 @@ post('/users/new') do
     db.execute('INSERT INTO users (username,pwdigest) VALUES (?,?)',username,password_digest)
     redirect('/')
   else
-    "Lösenorden matchade inte"
+    redirect('/noMatch')
   end
 end
 
 get('/myBooks') do
   if !logged_in?
-    redirect('notLoggedIn')
+    redirect('/notLoggedIn')
   end
   @db = SQLite3::Database.new('db/bookies.db')
   @db.results_as_hash = true
@@ -215,4 +218,51 @@ delete('/books/:id/remove') do
   db.results_as_hash = true
   db.execute("DELETE FROM user_title_rel WHERE user_id = ? AND title_id = ?", user_id, title_id)
   redirect '/myBooks'
+end
+
+get('/books/:id/edit') do
+  id = params[:id]
+  db = SQLite3::Database.new('db/bookies.db')
+  db.results_as_hash = true
+  book_info = db.execute("SELECT * FROM book WHERE id = ?", id).first
+  @genres = db.execute("SELECT * FROM genre")
+  @genre = db.execute("SELECT genre_name FROM genre WHERE id = ?", book_info["genre_id"]).first["genre_name"]
+  @author = db.execute("SELECT author_name FROM author WHERE id = ?", book_info["author_id"]).first["author_name"]
+  @title = book_info["title"]
+  @pages = book_info["pages"]
+  slim(:edit)
+end
+
+post('/books/:id/edit') do
+  id = params[:id]
+  exist = false
+  db = SQLite3::Database.new('db/bookies.db')
+  db.results_as_hash = true
+  author_info = db.execute("SELECT author_name FROM author")
+  unless params[:author] == ""
+    author_info.each do |author|
+      if params[:author] == author["author_name"]
+        exist = true
+      end
+    end
+    if exist
+      author_id = db.execute("SELECT id FROM author WHERE author_name = ?", params[:author]).first["id"]
+      db.execute("UPDATE book SET author_id = ?", author_id)
+    else
+      db.execute("INSERT INTO author (author_name) VALUES (?)", params[:author])
+      author_id = db.execute("SELECT id FROM author WHERE author_name = ?", params[:author]).first["id"]
+      db.execute("UPDATE book SET author_id = ?", author_id)
+    end
+  end
+  unless params[:title] == ""
+    db.execute("UPDATE book SET title = ?", params[:title])
+  end
+  unless params[:genre] == ""
+    genre_id = db.execute("SELECT id FROM genre WHERE genre_name = ?", params[:genre]).first["id"]
+    db.execute("UPDATE book SET genre_id = ?", genre_id)
+  end
+  unless params[:pages] == ""
+    db.execute("UPDATE book SET pages = ?", params[:pages])
+  end
+  redirect('/bookies')
 end
