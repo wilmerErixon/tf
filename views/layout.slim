@@ -7,7 +7,7 @@ html lang="en"
     body 
         -   if !logged_in?
                 nav
-                    a href="/" Start
+                    a href="/bookies" Start
                     a href="/register" Register 
                     a href="/showlogin" Login
         -   else 
@@ -15,7 +15,6 @@ html lang="en"
                     - if session[:authorization] == "admin"
                         a href="/bookies/new" Add book
                     a href="/" Start
-                    a href="/bookies" All books 
                     a href="/myBooks" My books 
                     a href="/logout" Logout
         ==yield

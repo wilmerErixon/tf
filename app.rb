@@ -12,8 +12,22 @@ helpers do
   end
 end
 
+total_attempts = 3
+first_cooldown = 2
+ultimateCooldown = 500
+
+before '/login' do
+  session[:attempts] ||=0
+  if session[:attempts] >= total_attempts
+    cooldown = [first_cooldown * (2 ** (session[:attempts] - total_attempts)), ultimateCooldown].min
+    if Time.now - (session[:latestAttempt] || Time.now) < cooldown 
+      halt 429, "Too many attempts! Please wait #{cooldown - (Time.now - session[:latestAttempt]).to_i} seconds."
+    end
+  end
+end
+
 get('/')  do
-    slim(:start)
+  redirect('/bookies')
 end 
 
 get('/register')  do
@@ -32,6 +46,22 @@ get('/wrongpassword') do
   slim(:wrongPassword)
 end
 
+get('/notAuthorized') do
+  slim(:"notAuthorized")
+end
+
+get('/notLoggedIn') do
+  slim(:"notLoggedIn")
+end
+
+get('/usedUser') do
+  slim(:"usedUser")
+end
+
+get('/emptyError') do
+  slim(:"emptyError")
+end
+
 post('/login') do
   username = params[:username]
   password = params[:password]
@@ -44,8 +74,6 @@ post('/login') do
   pwdigest = result["pwdigest"]
   id = result["id"]
 
-
-
   if BCrypt::Password.new(pwdigest) == password
     session[:id] = id
     session[:username] = username
@@ -54,10 +82,10 @@ post('/login') do
     else 
       session[:authorization] = "user"
     end
-    p session[:id]
-    p session[:authorization]
     redirect('/bookies')
   else
+    session[:latestAttempt] = Time.now
+    session[:attempts] += 1
     redirect('/wrongpassword')
   end
 end
@@ -68,7 +96,7 @@ get('/logout') do
 end
 
 get('/bookies') do
-  p session[:authorization]
+  
   db = SQLite3::Database.new("db/bookies.db")
   db.results_as_hash = true
   @result = db.execute("SELECT * FROM book")
@@ -79,10 +107,23 @@ post('/users/new') do
   username = params[:username]
   password = params[:password]
   password_confirm = params[:password_confirm]
+  db = SQLite3::Database.new('db/bookies.db')
+  db.results_as_hash = true
+  userDatabase = db.execute("SELECT username FROM users")
+
+  userDatabase.each do |name| 
+    name = name["username"] 
+    if name == username
+      redirect('/usedUser')
+    end
+  end
+
+  if username == "" || password == ""
+    redirect('/emptyError')
+  end
 
   if password == password_confirm
     password_digest = BCrypt::Password.create(password)
-    db = SQLite3::Database.new('db/bookies.db')
     db.execute('INSERT INTO users (username,pwdigest) VALUES (?,?)',username,password_digest)
     redirect('/')
   else
@@ -90,11 +131,10 @@ post('/users/new') do
   end
 end
 
-get('/notAuthorized') do
-  slim(:"notAuthorized")
-end
-
 get('/myBooks') do
+  if !logged_in?
+    redirect('notLoggedIn')
+  end
   @db = SQLite3::Database.new('db/bookies.db')
   @db.results_as_hash = true
   @title_ids = @db.execute("SELECT title_id FROM user_title_rel WHERE user_id = ?", session[:id])
@@ -147,6 +187,7 @@ post('/books/:id/delete') do
   id = params[:id].to_i
   db = SQLite3::Database.new("db/bookies.db")
   db.execute("DELETE FROM book WHERE id = ?",id)
+  db.execute("DELETE FROM user_title_rel WHERE title_id = ?", id)
   redirect('/bookies')
 end
 
@@ -165,4 +206,13 @@ post('/books/:id/add') do
   end
   db.execute("INSERT INTO user_title_rel (user_id, title_id) VALUES (?,?)", user_id, title_id)
   redirect('/myBooks')
+end
+
+delete('/books/:id/remove') do
+  title_id = params[:id]
+  user_id = session[:id]
+  db = SQLite3::Database.new('db/bookies.db')
+  db.results_as_hash = true
+  db.execute("DELETE FROM user_title_rel WHERE user_id = ? AND title_id = ?", user_id, title_id)
+  redirect '/myBooks'
 end

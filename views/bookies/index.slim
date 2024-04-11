@@ -1,12 +1,16 @@
-h2 See all your saved books here #{session[:username]}
+-   if !logged_in?
+        h2 Welcome to Bookies!
+
+h3 See all books here!
 
 
 ol
     - @result.each do |book|
         li 
             a href="books/#{book['id']}" #{book["title"]}
-            form method="POST" action="books/#{book['id']}/add" 
-                input type="submit" value="Add to my books"
+            - if logged_in?
+                form method="POST" action="books/#{book['id']}/add" 
+                    input type="submit" value="Add to my books"
             - if session[:authorization] == "admin"    
                 form method="POST" action="books/#{book['id']}/update"
                     input type="submit" value="Update"
