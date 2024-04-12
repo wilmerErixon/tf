@@ -12,14 +12,14 @@ helpers do
   end
 end
 
-total_attempts = 3
-first_cooldown = 2
+totalAttempts = 3
+innitialCooldown = 2
 ultimateCooldown = 500
 
 before '/login' do
   session[:attempts] ||=0
-  if session[:attempts] >= total_attempts
-    cooldown = [first_cooldown * (2 ** (session[:attempts] - total_attempts)), ultimateCooldown].min
+  if session[:attempts] >= totalAttempts
+    cooldown = [innitialCooldown * (2 ** (session[:attempts] - totalAttempts)), ultimateCooldown].min
     if Time.now - (session[:latestAttempt] || Time.now) < cooldown 
       halt 429, "Too many attempts! Please wait #{cooldown - (Time.now - session[:latestAttempt]).to_i} seconds."
     end
