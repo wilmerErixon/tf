@@ -38,10 +38,6 @@ get('/showlogin')  do
   slim(:login)
 end 
 
-get('/wrongusername') do
-  slim(:wrongUsername)
-end
-
 get('/wrongpassword') do
   slim(:wrongPassword)
 end
@@ -58,10 +54,6 @@ get('/usedUser') do
   slim(:"usedUser")
 end
 
-get('/emptyError') do
-  slim(:"emptyError")
-end
-
 get('/noMatch') do
   slim(:"noMatch")
 end
@@ -73,7 +65,9 @@ post('/login') do
   db.results_as_hash = true
   result = db.execute("SELECT * FROM users WHERE username = ?",username).first
   if result == nil 
-    redirect('/wrongusername')
+    session[:error] = "wrongUsername"
+    redirect('/showlogin')
+    redirect
   end
   pwdigest = result["pwdigest"]
   id = result["id"]
@@ -90,7 +84,8 @@ post('/login') do
   else
     session[:latestAttempt] = Time.now
     session[:attempts] += 1
-    redirect('/wrongpassword')
+    session[:error] = "wrongPassword"
+    redirect('/showlogin')
   end
 end
 
@@ -117,20 +112,20 @@ post('/users/new') do
   userDatabase.each do |name| 
     name = name["username"] 
     if name == username
-      redirect('/usedUser')
+      session[:error] = "usedUser"
     end
   end
 
   if username == "" || password == ""
-    redirect('/emptyError')
-  end
+    session[:error] = "blankSpace"
+ end
 
   if password == password_confirm
     password_digest = BCrypt::Password.create(password)
     db.execute('INSERT INTO users (username,pwdigest) VALUES (?,?)',username,password_digest)
     redirect('/')
   else
-    redirect('/noMatch')
+    session[:error] = "noMatch"
   end
 end
 
@@ -234,6 +229,9 @@ get('/books/:id/edit') do
 end
 
 post('/books/:id/edit') do
+  if session[:authorization] != "admin"
+    redirect('/notAuthorized')
+  end 
   id = params[:id]
   exist = false
   db = SQLite3::Database.new('db/bookies.db')

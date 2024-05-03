@@ -3,3 +3,13 @@ form action="users/new" method="POST"
     input type="password" name="password" placeholder="Enter password"
     input type="password" name="password_confirm" placeholder="Enter password again"
     input type="submit" value="Registrera ny användare"/
+
+- if session[:error] == "blankSpace"
+    p Fields may not be empty thou foul wretched creature!  
+    - session[:error] = nil 
+- elsif session[:error] == "usedUser"
+    p This username is already in use
+    - session[:error] = nil 
+- elsif session[:error] == "noMatch"
+    p The passwords did not match
+    - session[:error] = nil 

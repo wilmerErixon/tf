@@ -4,3 +4,10 @@ form action="login" method="POST"
     input type="text" name="username" placeholder="Enter Username"
     input type="password" name="password" placeholder="Enter password"
     input type="submit" value="Logga in"
+
+- if session[:error] == "wrongUsername"
+    p The user does not exist 
+    - session[:error] = nil 
+- elsif session[:error] == "wrongPassword"
+    p The password was incorecct
+    - session[:error] = nil 

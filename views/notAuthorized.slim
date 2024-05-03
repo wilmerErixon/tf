@@ -1,3 +1,6 @@
-p you are not authorized to access this function 
-
-a href="/bookies" Go back to all books 
+- if session[:authorization] = "admin"
+    p you are not authorized to access this function 
+- elsif session[:authorization] = "user"
+    p You need to be logged in to acces this function
+    
+href="/bookies" Go back to all books 
