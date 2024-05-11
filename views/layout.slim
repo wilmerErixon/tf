@@ -12,7 +12,7 @@ html lang="en"
                     a href="/showlogin" Login
         -   else 
                 nav
-                    - if session[:authorization] == "admin"
+                    - if authorized?
                         a href="/bookies/new" Add book
                     a href="/" Start
                     a href="/myBooks" My books 

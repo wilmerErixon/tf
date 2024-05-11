@@ -1,9 +1,9 @@
 form action="/books/#{params[:id]}/edit" method="post"
-    input type="text" name="title" placeholder="#{@title}"
-    input type="text" name="author" placeholder="#{@author}"
-    input type="text" name="pages" placeholder="#{@pages}"
+    input type="text" name="title" placeholder="#{title}"
+    input type="text" name="author" placeholder="#{author}"
+    input type="text" name="pages" placeholder="#{pages}"
     select name="genre" placeholder="genre"
         option value="#{nil}" selected="selected" Genre
-        - @genres.each do |genre|
+        - genres.each do |genre|
             option value="#{genre["genre_name"]}" #{genre["genre_name"]}
     input type="submit" value="Edit book"

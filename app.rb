@@ -1,21 +1,36 @@
+# Require necessary gems and local files
 require 'sinatra'
 require 'slim'
 require 'sqlite3'
 require 'sinatra/reloader'
 require 'bcrypt'
+require_relative './model.rb'
 
+# Enable sessions
 enable :sessions
 
+# Include Model module
+include Model
+
+# Helper methods for authentication
 helpers do
+  # Checks if a user is logged in
   def logged_in?
     !session[:id].nil? && !session[:username].nil?
   end
+
+  # Checks if a user is authorized as an admin
+  def authorized?
+    session[:authorization] == "admin"
+  end
 end
 
+# Constants for login attempt control
 totalAttempts = 3
 innitialCooldown = 2
 ultimateCooldown = 500
 
+# Before filter to control login attempts
 before '/login' do
   session[:attempts] ||=0
   if session[:attempts] >= totalAttempts
@@ -26,241 +41,221 @@ before '/login' do
   end
 end
 
-get('/')  do
-  redirect('/bookies')
+# Display Landing Page
+#
+get('/') do
+  slim(:index)
 end 
 
-get('/register')  do
+# Displays the registration form
+#
+get('/register') do
   slim(:register)
 end 
 
-get('/showlogin')  do
+# Displays the login form
+#
+get('/showlogin') do
   slim(:login)
 end 
 
-get('/wrongpassword') do
-  slim(:wrongPassword)
-end
-
+# Displays the not authorized page
+#
 get('/notAuthorized') do
-  slim(:"notAuthorized")
+  slim(:notAuthorized)
 end
 
-get('/notLoggedIn') do
-  slim(:"notLoggedIn")
-end
-
-get('/usedUser') do
-  slim(:"usedUser")
-end
-
-get('/noMatch') do
-  slim(:"noMatch")
-end
-
+# Handles login request
+#
+# @param [String] username, The username
+# @param [String] password, The password
+#
+# @see Model#authenticate_user
 post('/login') do
   username = params[:username]
   password = params[:password]
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  result = db.execute("SELECT * FROM users WHERE username = ?",username).first
-  if result == nil 
-    session[:error] = "wrongUsername"
-    redirect('/showlogin')
-    redirect
-  end
-  pwdigest = result["pwdigest"]
-  id = result["id"]
+  authentication_result = Model.authenticate_user(username, password)
 
-  if BCrypt::Password.new(pwdigest) == password
-    session[:id] = id
-    session[:username] = username
-    if username == "ADMIN"
-      session[:authorization] = "admin"
-    else 
-      session[:authorization] = "user"
-    end
-    redirect('/bookies')
-  else
-    session[:latestAttempt] = Time.now
-    session[:attempts] += 1
-    session[:error] = "wrongPassword"
+  if authentication_result[:error]
+    session[:error] = authentication_result[:error]
     redirect('/showlogin')
+  else
+    session[:id] = authentication_result[:id]
+    session[:username] = authentication_result[:username]
+    session[:authorization] = authentication_result[:authorization]
+    redirect('/bookies')
   end
 end
 
+# Handles logout request
+#
 get('/logout') do
   session.clear
   redirect('/')
 end
 
+# Renders the bookies page with all books
+#
 get('/bookies') do
-  db = SQLite3::Database.new("db/bookies.db")
-  db.results_as_hash = true
-  @result = db.execute("SELECT * FROM book")
-  slim(:"bookies/index")
+  all_books = Model.get_all_books
+  slim(:"bookies/index", locals: { all_books: all_books})
 end
 
+# Handles new user registration
+#
+# @param [String] username, The username
+# @param [String] password, The password
+# @param [String] password_confirm, The confirmation password
+#
+# @see Model#username_taken?
+# @see Model#create_user
 post('/users/new') do
   username = params[:username]
   password = params[:password]
   password_confirm = params[:password_confirm]
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  userDatabase = db.execute("SELECT username FROM users")
-
-  userDatabase.each do |name| 
-    name = name["username"] 
-    if name == username
-      session[:error] = "usedUser"
-    end
+  if Model.username_taken?(username)
+    session[:error] = "usedUser"
+    redirect('/register')
   end
-
-  if username == "" || password == ""
+  if username.empty? || password.empty?
     session[:error] = "blankSpace"
- end
-
+    redirect('/register')
+  end
   if password == password_confirm
     password_digest = BCrypt::Password.create(password)
-    db.execute('INSERT INTO users (username,pwdigest) VALUES (?,?)',username,password_digest)
+    Model.create_user(username, password_digest)
     redirect('/')
   else
     session[:error] = "noMatch"
+    redirect('/register')
   end
 end
 
+# Renders the user's books page
+#
 get('/myBooks') do
-  if !logged_in?
-    redirect('/notLoggedIn')
-  end
-  @db = SQLite3::Database.new('db/bookies.db')
-  @db.results_as_hash = true
-  @title_ids = @db.execute("SELECT title_id FROM user_title_rel WHERE user_id = ?", session[:id])
-  slim(:"/users/myBooks")
+  redirect('/notAuthorized') unless logged_in?
+  title_ids = Model.get_user_title_ids(session[:id])
+  slim(:"/users/myBooks", locals: { title_ids: title_ids })
 end
 
+# Renders the form for adding a new book
+#
 get('/bookies/new') do
-  if session[:authorization] != "admin"
-    redirect('/notAuthorized')
-  end
-  db = SQLite3::Database.new("db/bookies.db")
-  db.results_as_hash = true
-  @genres = db.execute("SELECT * FROM genre")
-  p @genres
-  slim(:"bookies/new")
+  redirect('/notAuthorized') unless authorized?
+  genres = Model.get_all_genres
+  slim(:"bookies/new", locals: { genres: genres })
 end
 
+# Handles adding a new book
+#
+# @param [String] title, The title of the book
+# @param [String] author, The author of the book
+# @param [String] genre, The genre of the book
+# @param [Integer] pages, The number of pages of the book
+#
+# @see Model#newbook
 post('/bookies/new') do
   title = params[:title]
   author = params[:author]
   genre = params[:genre]
-  db = SQLite3::Database.new("db/bookies.db")
-  db.results_as_hash = true
-  p db.execute("SELECT id FROM author WHERE author_name = ?", author)
-  if db.execute("SELECT id FROM author WHERE author_name = ?", author) == []
-    db.execute("INSERT INTO author (author_name) VALUES (?)", (author))
-  end
   pages = params[:pages]
-  author_id = db.execute("SELECT id FROM author WHERE author_name = ?", author).first["id"]
-  genre_id = db.execute("SELECT id FROM genre WHERE genre_name = ?", genre).first["id"]
-  db.execute("INSERT INTO book (title, author_id, pages, genre_id) VALUES (?,?,?,?)", title, author_id, pages, genre_id)
+  Model.newbook(title, author, genre, pages)
   redirect('/bookies')
 end 
 
+# Renders details of a single book
+#
+# @param [Integer] id, The ID of the book
+#
+# @see Model#get_book_details
 get('/books/:id') do
   id = params[:id].to_i
-  db = SQLite3::Database.new("db/bookies.db")
-  db.results_as_hash = true
-  book = db.execute("SELECT * FROM book WHERE id = ?",id).first
-  author = db.execute("SELECT author_name FROM author WHERE id IN (SELECT author_id FROM book WHERE id = ?)", id).first
-  genre = db.execute("SELECT genre_name FROM genre WHERE id IN (SELECT genre_id FROM book WHERE id = ?)", id).first
-  p  "#{book}, #{author}, #{genre}" 
-  slim(:"bookies/books",locals:{book:book,author:author,genre:genre})
-end 
+  book, author, genre = Model.get_book_details(id)
+  slim(:"bookies/books", locals: { book: book, author: author, genre: genre })
+end
 
+# Handles deleting a book
+#
+# @param [Integer] id, The ID of the book
+#
+# @see Model#delete_book
 post('/books/:id/delete') do
-  if session[:authorization] != "admin"
-    redirect('/notAuthorized')
-  end
-  id = params[:id].to_i
-  db = SQLite3::Database.new("db/bookies.db")
-  db.execute("DELETE FROM book WHERE id = ?",id)
-  db.execute("DELETE FROM user_title_rel WHERE title_id = ?", id)
+  redirect('/notAuthorized') unless authorized?
+  book_id = params[:id].to_i
+  Model.delete_book(book_id)
   redirect('/bookies')
 end
 
+# Handles adding a book to a user's collection
+#
+# @param [Integer] id, The ID of the book
+#
+# @see Model#add_book_to_collection
 post('/books/:id/add') do
   title_id = params[:id]
   user_id = session[:id]
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  current_ids = db.execute("SELECT title_id FROM user_title_rel WHERE user_id = ?", user_id)
-  current_ids.each do |id| 
-    p id["title_id"] 
-    p title_id
-    if id["title_id"] == title_id.to_i
-      redirect('/myBooks')
-    end
-  end
-  db.execute("INSERT INTO user_title_rel (user_id, title_id) VALUES (?,?)", user_id, title_id)
+  Model.add_book_to_collection(user_id, title_id)
   redirect('/myBooks')
 end
 
+# Handles removing a book from a user's collection
+#
+# @param [Integer] id, The ID of the book
+#
+# @see Model#remove_book_from_collection
 delete('/books/:id/remove') do
   title_id = params[:id]
   user_id = session[:id]
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  db.execute("DELETE FROM user_title_rel WHERE user_id = ? AND title_id = ?", user_id, title_id)
+  Model.remove_book_from_collection(user_id, title_id)
   redirect '/myBooks'
 end
 
+# Renders the form for editing a book
+#
+# @param [Integer] id, The ID of the book
+#
+# @see Model#get_book_info
+# @see Model#get_all_genres
+# @see Model#get_genre_name
+# @see Model#get_author_name
+# @see Model#update_book
 get('/books/:id/edit') do
+  redirect('/notAuthorized') unless authorized?
   id = params[:id]
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  book_info = db.execute("SELECT * FROM book WHERE id = ?", id).first
-  @genres = db.execute("SELECT * FROM genre")
-  @genre = db.execute("SELECT genre_name FROM genre WHERE id = ?", book_info["genre_id"]).first["genre_name"]
-  @author = db.execute("SELECT author_name FROM author WHERE id = ?", book_info["author_id"]).first["author_name"]
-  @title = book_info["title"]
-  @pages = book_info["pages"]
-  slim(:edit)
+  book_info = Model.get_book_info(id)
+  genres = Model.get_all_genres
+  genre = Model.get_genre_name(book_info["genre_id"])
+  author = Model.get_author_name(book_info["author_id"])
+  title = book_info["title"]
+  pages = book_info["pages"]
+  slim(:edit, locals: { genres: genres, genre: genre, title: title, author: author, pages: pages})
 end
 
+# Handles updating book information
+#
+# @param [Integer] id, The ID of the book
+# @param [String] author, The new author of the book
+# @param [String] title, The new title of the book
+# @param [String] genre, The new genre of the book
+# @param [Integer] pages, The new number of pages of the book
+#
+# @see Model#get_or_create_author_id
+# @see Model#update_book
 post('/books/:id/edit') do
-  if session[:authorization] != "admin"
-    redirect('/notAuthorized')
-  end 
   id = params[:id]
-  exist = false
-  db = SQLite3::Database.new('db/bookies.db')
-  db.results_as_hash = true
-  author_info = db.execute("SELECT author_name FROM author")
-  unless params[:author] == ""
-    author_info.each do |author|
-      if params[:author] == author["author_name"]
-        exist = true
-      end
-    end
-    if exist
-      author_id = db.execute("SELECT id FROM author WHERE author_name = ?", params[:author]).first["id"]
-      db.execute("UPDATE book SET author_id = ?", author_id)
-    else
-      db.execute("INSERT INTO author (author_name) VALUES (?)", params[:author])
-      author_id = db.execute("SELECT id FROM author WHERE author_name = ?", params[:author]).first["id"]
-      db.execute("UPDATE book SET author_id = ?", author_id)
-    end
+  book_info = Model.get_book_info(id)
+  genres = Model.get_all_genres
+  unless params[:author].empty?
+    author_id = Model.get_or_create_author_id(params[:author])
+    book_info['author_id'] = author_id
   end
-  unless params[:title] == ""
-    db.execute("UPDATE book SET title = ?", params[:title])
+  book_info['title'] = params[:title] unless params[:title].empty?
+  unless params[:genre].empty?
+    genre_id = genres.find { |genre| genre['genre_name'] == params[:genre] }&.fetch('id', nil)
+    book_info['genre_id'] = genre_id
   end
-  unless params[:genre] == ""
-    genre_id = db.execute("SELECT id FROM genre WHERE genre_name = ?", params[:genre]).first["id"]
-    db.execute("UPDATE book SET genre_id = ?", genre_id)
-  end
-  unless params[:pages] == ""
-    db.execute("UPDATE book SET pages = ?", params[:pages])
-  end
+  book_info['pages'] = params[:pages] unless params[:pages].empty?
+  Model.update_book(id, book_info)
   redirect('/bookies')
 end

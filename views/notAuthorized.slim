@@ -1,6 +1,6 @@
-- if session[:authorization] = "admin"
+- if !authorized?
     p you are not authorized to access this function 
-- elsif session[:authorization] = "user"
+- elsif !logged_in?
     p You need to be logged in to acces this function
     
-href="/bookies" Go back to all books 
+a href="/bookies" Go back to all books 
